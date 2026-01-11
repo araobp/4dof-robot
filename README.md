@@ -30,6 +30,7 @@ ICTエンジニアが小さな投資(1万円以下)でフィジカルAIの勉強
 - 4DoF Robot Kit
 - Arduino UNO
 - Mac or PC
+- RaspberryPi (SvelteKit(Node.js)-Arduino接続用)
 - 広角USBカメラ
 - 電子部品、基板、近接センサー
 - Arudino IDE2
