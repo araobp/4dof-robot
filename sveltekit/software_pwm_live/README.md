@@ -10,7 +10,7 @@ The app creates a bridge between your voice and hardware. You can speak naturall
 
 - **Voice Control**: Uses Gemini Live (via WebSocket) for real-time, low-latency voice interaction.
 - **Web Serial API**: Connects directly to the Arduino from the browser without needing a local server or bridge.
-- **Tool Calling**: The AI understands specific tools (`set_blinking`, `set_brightness`, `set_interval`) to control the hardware precisely.
+- **Function Calling**: The AI understands specific tools (`set_blinking`, `set_brightness`, `set_interval`) to control the hardware precisely.
 - **Real-time Audio**: Implements a custom AudioWorklet to stream raw PCM audio to the Gemini API.
 
 ## Prerequisites
