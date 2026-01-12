@@ -42,7 +42,7 @@ ICTエンジニアが小さな投資(1万円以下)でフィジカルAIの勉強
 たぶん、フィジカルAI始める時、みんなが通る道。
 
 - Step1: ArduinoのオンボードLEDでLチカ、シリアルモニターから"1"を送信すると点滅、"0"を送信すると停止 => [コード](test/sketch_apr8a)
-- Step2: ブレッドボード上のLEDをArduinoからLチカ、今回はタイマー割り込みでLチカを制御する
+- Step2: ブレッドボード上のLEDをArduinoからLチカ、今回はタイマー割り込みでLチカを制御する => [コード](test/sketch_jan12a)
 - Step3: ブレッドボードを挟んでサーボモータSG90とArduinoを接続しサーボの回転を制御、VDD-GND間に470uFの電解コンデンサを挟んで回転動作を安定化
 - Step4: オシロスコープでArduinoが発するPWMの波形を可視化
 - Step5: Arduino向け三角関数ライブラリの評価、IK(Inverse Kinemaics)の計算
