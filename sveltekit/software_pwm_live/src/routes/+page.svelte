@@ -43,6 +43,8 @@
 	});
 
 	$effect(() => {
+		// Register 'output' as a dependency for this effect.
+		// This ensures the effect runs whenever 'output' changes, scrolling the log to the bottom.
 		output; // Dependency registration
 		if (outputElement) {
 			outputElement.scrollTop = outputElement.scrollHeight;
@@ -85,10 +87,14 @@
 				if (done) {
 					break;
 				}
+				// Decode the Uint8Array to a string. { stream: true } keeps the internal state
+				// of the decoder if a multi-byte character is split across chunks.
 				const chunk = decoder.decode(value, { stream: true });
 				output += chunk;
 				buffer += chunk;
+				// Split by newline to process complete commands
 				const lines = buffer.split("\n");
+				// Keep the last partial line in the buffer for the next chunk
 				buffer = lines.pop() || "";
 
 				lines.forEach(parseStatus);
@@ -132,6 +138,7 @@
 	};
 
 	const parseStatus = (/** @type {string} */ line) => {
+		// Parse the status string returned by the Arduino (e.g., "blink=1,brightness=5,interval=200")
 		const match = line.match(/blink=(\d+),brightness=(\d+),interval=(\d+)/);
 		if (match) {
 			blinking = match[1] === "1";
@@ -184,6 +191,7 @@
 					output += `[Gemini] Calling ${name} with ${JSON.stringify(args)}\n`;
 
 					// Handle tool calls from Gemini and map them to Arduino commands
+					// The return value string is sent back to the model as the tool execution result.
 					if (name === "set_blinking") {
 						blinking = args.enabled;
 						updateBlink();
@@ -215,6 +223,7 @@
 
 <div class="container">
 	<div class="left-panel">
+		<!-- Connection Controls -->
 		<!-- Main UI Layout -->
 		<div class="control-group">
 			<button onclick={connect}>Connect Arduino</button>
@@ -258,6 +267,7 @@
 			</p>
 		</div>
 
+		<!-- Manual Controls (synced with voice commands) -->
 		<div class="control-group">
 			<label>
 				<input

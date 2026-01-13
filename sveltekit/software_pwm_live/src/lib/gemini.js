@@ -43,13 +43,16 @@ export class GeminiLiveClient {
 
         this.ws.onopen = () => {
             console.log("Connected to Gemini Live");
+            // Send the initial configuration immediately upon connection
             this.sendSetup();
+            // Start capturing and streaming audio
             this.startAudioStream();
             if (this.callbacks.onConnect) this.callbacks.onConnect();
         };
 
         this.ws.onmessage = async (event) => {
             const data = event.data;
+            // The API sends responses as Blobs containing JSON
             if (data instanceof Blob) {
                 const text = await data.text();
                 const msg = JSON.parse(text);
@@ -80,17 +83,18 @@ export class GeminiLiveClient {
             setup: {
                 model: "models/gemini-2.5-flash-native-audio-preview-12-2025",
                 generation_config: {
-                    response_modalities: ["AUDIO"],
+                    response_modalities: ["AUDIO"], // Request audio output from the model
                     speech_config: {
                         voice_config: {
                             prebuilt_voice_config: {
-                                voice_name: "Charon"
+                                voice_name: "Charon" // Select a specific voice persona
                             }
                         }
                     }
                 },
                 tools: [
                     {
+                        // Define functions that the model can call to control the robot
                         function_declarations: [
                             {
                                 name: "set_blinking",
@@ -155,8 +159,10 @@ export class GeminiLiveClient {
             sampleRate: 24000
         });
         
+        // Create analysers for volume visualization
         this.inputAnalyser = this.audioContext.createAnalyser();
         this.outputAnalyser = this.audioContext.createAnalyser();
+        // Connect output analyser to destination so we can hear the response (and visualize it)
         this.outputAnalyser.connect(this.audioContext.destination);
 
         try {
@@ -179,10 +185,11 @@ export class GeminiLiveClient {
         this.audioProcessor.port.onmessage = (event) => {
             const pcmData = event.data; // Int16Array
             if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-                // Convert to base64
+                // Convert raw PCM to base64 for transport
                 const buffer = pcmData.buffer;
                 const base64 = this.arrayBufferToBase64(buffer);
 
+                // Wrap in the expected JSON structure
                 const msg = {
                     realtime_input: {
                         media_chunks: [
@@ -197,6 +204,8 @@ export class GeminiLiveClient {
             }
         };
 
+        // Connect the audio graph: Source -> Analyser -> Processor
+        // Note: The processor doesn't connect to destination to avoid feedback loop of own voice
         source.connect(this.inputAnalyser);
         source.connect(this.audioProcessor);
         
@@ -209,14 +218,17 @@ export class GeminiLiveClient {
      */
     stopAudioStream() {
         this.stopVolumeReporting();
+        // Stop the microphone stream
         if (this.mediaStream) {
             this.mediaStream.getTracks().forEach(track => track.stop());
             this.mediaStream = null;
         }
+        // Disconnect the processor
         if (this.audioProcessor) {
             this.audioProcessor.disconnect();
             this.audioProcessor = null;
         }
+        // Close the audio context to release hardware resources
         if (this.audioContext) {
             this.audioContext.close();
             this.audioContext = null;
@@ -225,10 +237,16 @@ export class GeminiLiveClient {
         this.outputAnalyser = null;
     }
 
+    /**
+     * Starts an interval to calculate and report audio volume levels.
+     * Uses the AnalyserNodes created in startAudioStream.
+     * Reports volume every 50ms.
+     */
     startVolumeReporting() {
         if (this.volumeInterval) clearInterval(this.volumeInterval);
         this.volumeInterval = setInterval(() => {
             if (this.callbacks.onVolume) {
+                // Helper to calculate Root Mean Square (RMS) amplitude
                 const getRMS = (/** @type {AnalyserNode | null} */ analyser) => {
                     if (!analyser) return 0;
                     const bufferLength = analyser.fftSize;
@@ -236,6 +254,7 @@ export class GeminiLiveClient {
                     analyser.getByteTimeDomainData(dataArray);
                     let sum = 0;
                     for (let i = 0; i < bufferLength; i++) {
+                        // Convert 0-255 range to -1 to 1
                         const x = (dataArray[i] - 128) / 128.0;
                         sum += x * x;
                     }
@@ -249,6 +268,9 @@ export class GeminiLiveClient {
         }, 50);
     }
 
+    /**
+     * Stops the volume reporting interval.
+     */
     stopVolumeReporting() {
         if (this.volumeInterval) clearInterval(this.volumeInterval);
         this.volumeInterval = null;
@@ -279,6 +301,7 @@ export class GeminiLiveClient {
 					const input = inputs[0];
 					if (input.length > 0) {
 						const inputChannel = input[0];
+						// Buffer incoming audio data
 						for (let i = 0; i < inputChannel.length; i++) {
 							this.buffer[this.bufferIndex++] = inputChannel[i];
 							if (this.bufferIndex === this.bufferSize) {
@@ -286,15 +309,17 @@ export class GeminiLiveClient {
 							}
 						}
 					}
-					return true;
+					return true; // Keep processor alive
 				}
 
 				flush() {
+					// Convert Float32 (-1.0 to 1.0) to Int16 (-32768 to 32767)
 					const pcmData = new Int16Array(this.bufferSize);
 					for (let i = 0; i < this.bufferSize; i++) {
 						const s = Math.max(-1, Math.min(1, this.buffer[i]));
 						pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
 					}
+					// Send data back to main thread
 					this.port.postMessage(pcmData);
 					this.bufferIndex = 0;
 				}
@@ -311,6 +336,7 @@ export class GeminiLiveClient {
         let binary = '';
         const bytes = new Uint8Array(buffer);
         const len = bytes.byteLength;
+        // Convert byte array to binary string for btoa
         for (let i = 0; i < len; i++) {
             binary += String.fromCharCode(bytes[i]);
         }
@@ -323,6 +349,7 @@ export class GeminiLiveClient {
      * @param {any} msg
      */
     handleMessage(msg) {
+        // Handle audio content from the model
         if (msg.serverContent) {
             if (msg.serverContent.modelTurn) {
                 const parts = msg.serverContent.modelTurn.parts;
@@ -333,6 +360,7 @@ export class GeminiLiveClient {
                 }
             }
         } else if (msg.toolCall) {
+            // Handle function calls requested by the model
             this.handleToolCall(msg.toolCall);
         }
     }
@@ -351,12 +379,14 @@ export class GeminiLiveClient {
             let result = {};
 
             if (this.callbacks.onToolCall) {
+                // Execute the client-side logic for this tool
                 result = await this.callbacks.onToolCall(call.name, call.args);
             }
 
             // Must send a generic response for Void functions to satisfy the API
             if (result === undefined) result = { result: "ok" };
 
+            // Accumulate responses
             toolResponses.push({
                 id: call.id,
                 name: call.name,
@@ -366,6 +396,7 @@ export class GeminiLiveClient {
             });
         }
 
+        // Send all tool responses back to the model so it can generate a follow-up
         const responseMsg = {
             tool_response: {
                 function_responses: toolResponses
@@ -386,23 +417,30 @@ export class GeminiLiveClient {
     playAudio(base64Data) {
         if (!this.audioContext) return;
 
+        // Decode Base64 to binary string
         const binaryString = window.atob(base64Data);
         const len = binaryString.length;
         const bytes = new Uint8Array(len);
         for (let i = 0; i < len; i++) {
             bytes[i] = binaryString.charCodeAt(i);
         }
+        // Interpret as Int16 PCM
         const pcm16 = new Int16Array(bytes.buffer);
+        // Convert to Float32 for Web Audio API
         const float32 = new Float32Array(pcm16.length);
         for (let i = 0; i < pcm16.length; i++) {
             float32[i] = pcm16[i] / 32768.0;
         }
 
+        // Create an audio buffer
         const buffer = this.audioContext.createBuffer(1, float32.length, 24000);
         buffer.copyToChannel(float32, 0);
 
         const source = this.audioContext.createBufferSource();
         source.buffer = buffer;
+
+        // Connect to output analyser (for visualization) and destination (speakers)
+        // Note: In startAudioStream, outputAnalyser is already connected to destination.
         if (this.outputAnalyser) {
             source.connect(this.outputAnalyser);
         } else {
