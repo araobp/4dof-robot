@@ -22,13 +22,11 @@ export class GeminiLiveClient {
         this.mediaStream = null;
         /** @type {AudioWorkletNode | null} */
         this.audioProcessor = null;
-        /** 
-         * @type {Float32Array[]} 
-         * Queue to hold incoming audio chunks from Gemini.
-         * We buffer them to play them back smoothly without gaps.
+        /**
+         * @type {number}
+         * The timestamp (in AudioContext time) when the next scheduled audio chunk should start playing.
          */
-        this.audioQueue = [];
-        this.isPlaying = false;
+        this.nextStartTime = 0;
     }
 
     /**
@@ -343,6 +341,8 @@ export class GeminiLiveClient {
      * @param {string} base64Data
      */
     playAudio(base64Data) {
+        if (!this.audioContext) return;
+
         const binaryString = window.atob(base64Data);
         const len = binaryString.length;
         const bytes = new Uint8Array(len);
@@ -355,34 +355,20 @@ export class GeminiLiveClient {
             float32[i] = pcm16[i] / 32768.0;
         }
 
-        this.audioQueue.push(float32);
-        if (!this.isPlaying) {
-            this.playNextInQueue();
-        }
-    }
-
-    /**
-     * Plays the next audio chunk in the queue sequentially.
-     */
-    playNextInQueue() {
-        if (this.audioQueue.length === 0) {
-            this.isPlaying = false;
-            return;
-        }
-        this.isPlaying = true;
-        const float32 = this.audioQueue.shift();
-        if (!float32 || !this.audioContext) return;
-
         const buffer = this.audioContext.createBuffer(1, float32.length, 24000);
-        // @ts-ignore - Float32Array type mismatch with DOM lib
         buffer.copyToChannel(float32, 0);
+
         const source = this.audioContext.createBufferSource();
         source.buffer = buffer;
         source.connect(this.audioContext.destination);
-        source.onended = () => {
-            this.playNextInQueue();
-        };
-        source.start();
+
+        // Schedule the audio to play at the correct time
+        // If the scheduled time is in the past (e.g. latency), play immediately
+        const startTime = Math.max(this.audioContext.currentTime, this.nextStartTime);
+        source.start(startTime);
+
+        // Update the next start time to be the end of this current buffer
+        this.nextStartTime = startTime + buffer.duration;
     }
 
     /**
