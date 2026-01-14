@@ -9,7 +9,7 @@ const config = {
 			fallback: 'index.html'
 		}),
 		paths: {
-			base: process.env.NODE_ENV === "production" ? "/beginning-physical-ai" : "",
+			base: '/beginning-physical-ai/software_pwm_live',
 		},
 	}
 };
