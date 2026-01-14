@@ -7,7 +7,10 @@ const config = {
 			pages: '../../docs/software_pwm_live',
 			assets: '../../docs/software_pwm_live',
 			fallback: 'index.html'
-		})
+		}),
+		paths: {
+			base: process.env.NODE_ENV === "production" ? "/beginning_physical_ai" : "",
+		},
 	}
 };
 
