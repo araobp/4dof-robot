@@ -56,7 +56,7 @@
 - Arduino UNO R3をロボットコントローラとするが、４軸ロボットとの接続はAmazonで購入中の[この基板](https://www.amazon.co.jp/gp/product/B078YRJ8D7?ref=ppx_pt2_dt_b_prod_image)を経由。
 - Arduino UNO R3をUSBシリアル経由でラズパイと接続
 - ラズパイへ接続したUSBカメラ画像からロボットベースの平面座標を得る、マーカーで位置合わせする、Gemini Robotics-ER向け。
-- MCPがUSBバスみたいなものと言うなら、その通りにMCPを使ってみる：ラズパイ<-MCP->SvelteKit, ラズパイ<-MCP->Unity、これは昔でいうCORBAとかRMIだね。
+- MCPがUSBバスみたいなものと言うなら、その通りにMCPを使ってみる：ラズパイ<-MCP->SvelteKit, ラズパイ<-MCP->Unity、これは昔でいうCORBAとかRMIだね。この辺、ICTエンジニアの強み。
 - SvelteKitでGemini Liveアプリをつくり、ロボットを音声で制御する
 - Unity上にロボットのデジタルツインをつくり、ロボットと動作を同期させる
 - STMicro製のI2C 8x8マトリクスの近接センサーと連携させる：簡易LiDAR（ピック、プレイスのx,y,z最適化）と安全管理
