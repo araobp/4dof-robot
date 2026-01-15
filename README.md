@@ -65,6 +65,8 @@ ICTエンジニアが小さな投資(1万円以下)でフィジカルAIの勉強
 
 これが発展し、超多間接ロボット（例えば人型ロボット）のIK動作の強化学習など行うと、本格的なフィジカルAIになる。
 
+大谷選手は20msecの世界でホームラン打っているが、フィジカルAIはそのレベルに辿り着けるのか？
+
 ## My Arduino board
 
 [Arduino UNO R3](https://docs.arduino.cc/hardware/uno-rev3/)
