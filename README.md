@@ -8,13 +8,13 @@
 
 ### Camera Calibration用のチェスボード
 
-=> [OpenCVでチェスボード生成](python/chessboard)
+=> [OpenCVでチェスボード作成とカメラキャリブレーションデータ作成](python/chessboard)
 
 <img src="python/chessboard/chessboard_10x7.png" width="300px">
 
 ### ArUCOマーカー生成
 
-=> [OpenCVでArUCOマーカー生成](python/aruco)
+=> [OpenCVでArUCOマーカー作成](python/aruco)
 
 <table>
   <tr>
@@ -45,10 +45,9 @@
   </tr>
 </table>
 
-### USBカメラ
+### MCPサーバ
 
-### RaspberryPi
-
+=> [FastMCPベースのMCPサーバ](python/mcp_server)
 
 ## ゴール
 
