@@ -53,7 +53,7 @@ ICTエンジニアが小さな投資(1万円以下)でフィジカルAIの勉強
 ## ゴール
 
 - Amazonで購入中の[4軸ロボット](https://www.amazon.co.jp/dp/B0CX8QZVFQ?ref=ppx_yo2ov_dt_b_fed_asin_title)を制御
-- Arduino UNO R3をロボットコントローラとするが、４軸ロボットとの接続は、自作電源ボードを挟む（USB電源アダプターから給電、逆流防止、過電流防止回路付き）。
+- Arduino UNO R3をロボットコントローラとするが、４軸ロボットとの接続はAmazonで購入中の[この基板](https://www.amazon.co.jp/gp/product/B078YRJ8D7?ref=ppx_pt2_dt_b_prod_image)を経由。
 - Arduino UNO R3をUSBシリアル経由でPC上のSvelteKitアプリやUnityアプリと接続させる
 - Mac/PC/RaspberryPiへ接続したUSBカメラ画像からロボットベースの平面座標を得る、マーカーで位置合わせする
 - SvelteKitでGemini Liveアプリをつくり、ロボットを音声で制御する
