@@ -45,6 +45,20 @@
 
 ## 部品・ツール
 
+### 4DoFロボットアーム
+
+Amazonで購入：[4DoFロボット](https://www.amazon.co.jp/dp/B0CX8QZVFQ?ref=ppx_yo2ov_dt_b_fed_asin_title)
+
+組み立てマニュアル：
+- https://www.makerbuying.com/docs/4dofarm/over-view
+- https://www.youtube.com/watch?v=Q9JOKQaIR1w
+
+### NXP PCA9685 PWMコントローラ
+
+Amazonで購入：[KKHMF PCA9685 16チャンネル 12-ビット PWM Servo モーター ドライバー IIC モジュール](https://www.amazon.co.jp/dp/B078YRJ8D7)
+
+データシート：https://cdn-shop.adafruit.com/datasheets/PCA9685.pdf 
+
 ### Camera Calibration用のチェスボード
 
 => [OpenCVでチェスボード作成とカメラキャリブレーションデータ作成](python/chessboard)
@@ -102,7 +116,6 @@
 
 ## ゴール
 
-- Amazonで購入中の[4DoFロボット](https://www.amazon.co.jp/dp/B0CX8QZVFQ?ref=ppx_yo2ov_dt_b_fed_asin_title)をIKで制御
 - Arduino UNO R3をロボットコントローラとするが、４DoFロボットとの接続はAmazonで購入中の[この基板](https://www.amazon.co.jp/gp/product/B078YRJ8D7?ref=ppx_pt2_dt_b_prod_image)を経由。
 - Arduino UNO R3をUSBシリアル経由でラズパイと接続
 - ラズパイへ接続したUSBカメラ画像からロボットベースの平面座標を得る、マーカーで位置合わせする、Gemini Robotics-ER向け。
