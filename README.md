@@ -57,6 +57,8 @@ Amazonで購入：[4DoFロボット](https://www.amazon.co.jp/dp/B0CX8QZVFQ?ref=
 
 Amazonで購入：[KKHMF PCA9685 16チャンネル 12-ビット PWM Servo モーター ドライバー IIC モジュール](https://www.amazon.co.jp/dp/B078YRJ8D7)
 
+I2C address: 0x40 (A0 - A5 の端子を半田付けしてクローズすることでアドレス変更可能だが、今回はこのままで良し）。
+
 - ガイド：https://en.hwlibre.com/Complete-guide-to-the-PCA9685-controller-with-Arduino-and-more/
 - データシート：https://cdn-shop.adafruit.com/datasheets/PCA9685.pdf
 - Arduinoライブラリ：https://github.com/adafruit/Adafruit-PWM-Servo-Driver-Library
