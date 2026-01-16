@@ -130,7 +130,7 @@ ArduinoのI2C通信では、Wire.begin();を実行すると、デジタルピン
 - Gemini Robotics-ERでUnity上の多軸ロボットを制御(Unity)　=> https://github.com/araobp/unity-robotics
 - Gemini Liveで博物館内展示の自動音声応対(SvelteKit, Godot) => https://github.com/araobp/godot-museum
 - Arduinoで赤外線アレイセンサー(異常検知に使える？) => https://github.com/araobp/arduino-infrared-array-sensor
-- ロボット巡回(Godotの3D機能が弱く中断) => https://github.com/araobp/airport
+- 空港内MCPやロボット巡回(Godotの3D機能が弱く中断、このプロジェクト終わったらUnity版で再開させたい) => https://github.com/araobp/airport
 
 ## 読みたい論文
 - [Gemini Robotics](https://arxiv.org/pdf/2503.20020)
