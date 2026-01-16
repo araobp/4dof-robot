@@ -1,12 +1,13 @@
 import numpy as np
 import cv2
+import argparse
 
-def run_calibration(chessboard_size=(8, 5), square_size=25.0, output_filename="calibration_data.npz", camera_source=0):
+def run_calibration(chessboard_size=(9, 6), square_size=25.0, output_filename="calibration_data.npz", camera_source=0):
     """
     Runs camera calibration using a chessboard pattern.
 
     Args:
-        chessboard_size (tuple): Number of inner corners per a chessboard row and column (rows, columns).
+        chessboard_size (tuple): Number of inner corners per a chessboard row and column (corners_x, corners_y).
         square_size (float): Size of a single square edge in millimeters.
         output_filename (str): Path to save the calibration result (.npz file).
         camera_source (int or str): Camera index (int) or device path (str) for cv2.VideoCapture.
@@ -20,7 +21,7 @@ def run_calibration(chessboard_size=(8, 5), square_size=25.0, output_filename="c
     # Initialize camera
     cap = cv2.VideoCapture(camera_source)
 
-    print("Capture 20 images with 's' key. 'q' to quit.")
+    print("Capture 20 images with 's' key. Move the board to different angles/distances for each shot. 'q' to quit.")
     count = 0
     gray = None
     last_captured_frame = None
@@ -41,7 +42,7 @@ def run_calibration(chessboard_size=(8, 5), square_size=25.0, output_filename="c
             imgpoints.append(corners)
             last_captured_frame = original_frame
             count += 1
-            print(f"Captured {count}/20")
+            print(f"Captured {count}/20. Now move the board.")
         elif key == ord('q'): break
 
     cap.release()
@@ -67,15 +68,24 @@ def run_calibration(chessboard_size=(8, 5), square_size=25.0, output_filename="c
             cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    import sys
-    CHESSBOARD_SIZE = (8, 5) # Number of intersections
-    SQUARE_SIZE = 25.0    # Size of one square (mm)
+    parser = argparse.ArgumentParser(description="Camera calibration using a chessboard pattern.")
+    parser.add_argument("--corners-x", type=int, default=9, help="Number of inner corners along the x-axis (default: 9).")
+    parser.add_argument("--corners-y", type=int, default=6, help="Number of inner corners along the y-axis (default: 6).")
+    parser.add_argument("--size", type=float, default=25.0, help="Size of a square edge in millimeters (default: 25.0).")
+    parser.add_argument("--output", type=str, default="calibration_data.npz", help="Output file for calibration data (default: calibration_data.npz).")
+    parser.add_argument("--source", default="0", help="Camera source (index or device path, default: 0).")
+    args = parser.parse_args()
 
-    # Default to 0, but allow command line argument for camera source
-    source = 0
-    if len(sys.argv) > 1:
-        arg = sys.argv[1]
-        # If the argument is a digit, convert to int (for index), otherwise keep as string (for path)
-        source = int(arg) if arg.isdigit() else arg
+    chessboard_size = (args.corners_x, args.corners_y)
+    
+    # If the source argument is a digit, convert to int (for index), otherwise keep as string (for path)
+    source = int(args.source) if args.source.isdigit() else args.source
 
-    run_calibration(CHESSBOARD_SIZE, SQUARE_SIZE, camera_source=source)
+    print(f"Looking for a {chessboard_size[0]}x{chessboard_size[1]} corner pattern.")
+
+    run_calibration(
+        chessboard_size=chessboard_size,
+        square_size=args.size,
+        output_filename=args.output,
+        camera_source=source
+    )

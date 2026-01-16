@@ -2,13 +2,14 @@ import cv2
 import numpy as np
 import argparse
 
-def generate_chessboard(cols=9, rows=6, square_size_px=100, margin_px=100):
+def generate_chessboard(cols=9, rows=6, square_size_px=100, margin_px=100, darkness=0):
     """
     Generate a chessboard image with the specified parameters.
     :param cols: Number of columns (number of squares).
     :param rows: Number of rows (number of squares).
     :param square_size_px: Size of one square in pixels.
     :param margin_px: Outer margin in pixels.
+    :param darkness: Pixel value for the dark squares (0-255).
     :return: Chessboard image as a NumPy array.
     """
     # Calculate total image size including margins
@@ -25,7 +26,7 @@ def generate_chessboard(cols=9, rows=6, square_size_px=100, margin_px=100):
                 y2 = y1 + square_size_px
                 x1 = margin_px + c * square_size_px
                 x2 = x1 + square_size_px
-                image[y1:y2, x1:x2] = 0
+                image[y1:y2, x1:x2] = darkness
     return image
 
 def main():
@@ -37,6 +38,7 @@ def main():
     parser.add_argument("--rows", type=int, default=7, help="Number of rows (squares).")
     parser.add_argument("--size", type=int, default=150, help="Size of each square in pixels.")
     parser.add_argument("--margin", type=int, default=100, help="Margin around the board in pixels.")
+    parser.add_argument("--darkness", type=int, default=0, help="Darkness level for black squares (0-255).")
     parser.add_argument("--output", type=str, help="Output file name. Defaults to 'chessboard_{cols}x{rows}.png'")
     parser.add_argument("--no-display", action="store_true", help="Do not display the generated image.")
 
@@ -57,7 +59,8 @@ def main():
         cols=args.cols,
         rows=args.rows,
         square_size_px=args.size,
-        margin_px=args.margin
+        margin_px=args.margin,
+        darkness=args.darkness
     )
 
     # Save the image

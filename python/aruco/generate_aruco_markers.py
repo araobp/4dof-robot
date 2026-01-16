@@ -4,9 +4,17 @@ import argparse
 import sys
 
 if __name__ == "__main__":
+    """
+    Generate ArUco marker images.
+    Args:
+        --id (int): Marker ID (default: 10).
+        --size (int): Marker size (default: 300).
+        --darkness (int): Darkness level (pixel value 0-255, default: 0).
+    """
     parser = argparse.ArgumentParser(description="Generate ArUco marker images")
     parser.add_argument("--id", type=int, default=10, help="Marker ID (default: 10)")
     parser.add_argument("--size", type=int, default=300, help="Marker size (default: 300)")
+    parser.add_argument("--darkness", type=int, default=0, help="Darkness level (pixel value 0-255, default: 0)")
 
     if len(sys.argv) == 1:
         parser.print_help(sys.stderr)
@@ -35,6 +43,10 @@ if __name__ == "__main__":
     except AttributeError:
         # For older OpenCV versions
         img = cv2.aruco.drawMarker(aruco_dict, marker_id, marker_size, img, 1)
+
+    # Set darkness level
+    darkness = args.darkness
+    img[img == 0] = darkness
 
     # Save the generated marker image
     output_filename = f"marker_ID_{marker_id}.png"

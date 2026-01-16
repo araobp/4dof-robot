@@ -105,3 +105,8 @@
 - Gemini Liveで博物館内展示の自動音声応対(SvelteKit, Godot) => https://github.com/araobp/godot-museum
 - Arduinoで赤外線アレイセンサー(異常検知に使える？) => https://github.com/araobp/arduino-infrared-array-sensor
 - ロボット巡回(Godotの3D機能が弱く中断) => https://github.com/araobp/airport
+
+## 読みたい論文
+- [Gemini Robotics](https://arxiv.org/pdf/2503.20020)
+- [Gemini Robotics 1.5](https://arxiv.org/pdf/2510.03342)
+- [Robot Learning: A Tutorial](https://arxiv.org/pdf/2510.12403v1)

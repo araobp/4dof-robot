@@ -22,8 +22,7 @@ parameters = aruco.DetectorParameters()
 H_MATRIX = None # Global variable to store the calculated Homography matrix for perspective transformation
 NEW_MTX = None  # Global variable to store the refined camera matrix
 
-@mcp.tool()
-def calibrate_table() -> dict:
+def _calibrate_table() -> dict:
     """
     Detects the 4 corners of the table (ID 0,1,2,3) and generates the transformation matrix H.
     This matrix maps image coordinates to real-world table coordinates.
@@ -54,7 +53,14 @@ def calibrate_table() -> dict:
     return {"status": "error", "message": "Insufficient markers"}
 
 @mcp.tool()
-def convert_uv_to_ground(u: float, v: float) -> dict:
+def calibrate_table() -> dict:
+    """
+    Detects the 4 corners of the table (ID 0,1,2,3) and generates the transformation matrix H.
+    This matrix maps image coordinates to real-world table coordinates.
+    """
+    return _calibrate_table()
+
+def _convert_uv_to_ground(u: float, v: float) -> dict:
     """
     Converts image coordinates (u,v) to real space (x,z) in mm.
     Requires calibrate_table to be run first to establish the Homography matrix.
@@ -78,11 +84,19 @@ def convert_uv_to_ground(u: float, v: float) -> dict:
         "z_mm": float(ground_pt[0][0][1])
     }
 
+@mcp.tool()
+def convert_uv_to_ground(u: float, v: float) -> dict:
+    """
+    Converts image coordinates (u,v) to real space (x,z) in mm.
+    Requires calibrate_table to be run first to establish the Homography matrix.
+    """
+    return _convert_uv_to_ground(u, v)
+
 def run_local_test():
     """Runs a local interactive test with video feed and mouse click coordinate conversion."""
     print("Starting local test mode...")
     print("Step 1: Calibrating table (ensure markers 0-3 are visible)...")
-    res = calibrate_table()
+    res = _calibrate_table()
     if res.get("status") != "success":
         print(f"Calibration failed: {res.get('message')}")
         return
@@ -96,7 +110,7 @@ def run_local_test():
     def on_mouse(event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
             click_state["pt"] = (x, y)
-            result = convert_uv_to_ground(float(x), float(y))
+            result = _convert_uv_to_ground(float(x), float(y))
             if "x_mm" in result:
                 click_state["ground"] = (result["x_mm"], result["z_mm"])
 
