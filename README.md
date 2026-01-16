@@ -52,8 +52,6 @@ Amazonで購入：[4DoFロボット](https://www.amazon.co.jp/dp/B0CX8QZVFQ?ref=
 組み立てマニュアル：
 - https://www.makerbuying.com/docs/4dofarm/over-view
 - https://www.youtube.com/watch?v=Q9JOKQaIR1w
-- https://www.botnroll.com/img/cms/ROB05040_Manual.pdf
-- https://wiki.keyestudio.com/KS0488_Keyestudio_4DOF_Robot_Arm_DIY_Kit_V2.0_for_Arduino
 
 Google検索エンジンの言語設定を英語にして、"SNAM 1200 1300 1500 4 DOF ARM acrylic robot arm"で検索すると、たくさん出てくる。
 
