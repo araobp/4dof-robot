@@ -65,6 +65,12 @@ I2C address: 0x40 (A0 - A5 の端子を半田付けしてクローズするこ�
 - データシート：https://cdn-shop.adafruit.com/datasheets/PCA9685.pdf
 - Arduinoライブラリ：https://github.com/adafruit/Adafruit-PWM-Servo-Driver-Library
 
+ArduinoのI2Cは内部プルアップがデフォルトで機能するようだが、
+
+```
+ArduinoのI2C通信では、Wire.begin();を実行すると、デジタルピン2と3（SDA, SCL）に内部プルアップ抵抗が自動的に有効になりますが、これはおよそ20kΩ〜50kΩと抵抗値が比較的高めなので、より確実な通信のためには、通常4.7kΩ〜10kΩ程度の外付けプルアップ抵抗をSDA/SCLラインに接続するのが推奨されます。Wire.begin()だけでは不十分な場合があるため、外部抵抗の追加を検討しましょう
+```
+
 ### Camera Calibration用のチェスボード
 
 => [OpenCVでチェスボード作成とカメラキャリブレーションデータ作成](python/chessboard)
