@@ -1,5 +1,7 @@
 # Beginning Physical AI
 
+まだ、始まったばかりのプロジェクト。
+
 <img src="docs/4DoF_Robot_Kit.jpg" width="500px">
 
 ## 背景
