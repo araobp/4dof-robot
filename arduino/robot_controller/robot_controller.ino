@@ -4,201 +4,184 @@
 #include <EEPROM.h>
 
 /**
- * PHYSICAL PARAMETERS (Unit: mm)
+ * 物理パラメータ (単位: mm)
  */
-const float L1 = 80.0;          // Link 1: Shoulder (J2) to Elbow (J3)
-const float L2 = 80.0;          // Link 2: Elbow (J3) to Wrist (J4)
-const float L_OFF_J4_TCP = 53.0; // Horizontal offset from J4 to TCP
-const float Z_OFF_J4_TCP = 10.0; // Vertical offset (How much TCP is below J4 axis)
-const float OFF_J1_J2 = 15.0;    // Horizontal gap between J1 and J2
-const float BASE_H = 57.0;       // Height of J2 axis from the mat surface
+const float L1 = 80.0;          
+const float L2 = 80.0;          
+const float L_OFF_J4_TCP = 64.0; 
+const float Z_OFF_J4_TCP = 8.0; 
+const float OFF_J1_J2 = 12.0;    
+const float BASE_H = 60.0;       
 
-/**
- * MOTION CONTROL PARAMETERS
- */
-const int STEPS = 60;            // Number of points in a straight path
-const int STEP_DELAY = 10;       // Speed (ms between steps)
-
+const int STEP_DELAY = 10;       
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 #define SERVO_FREQ 50
 
 struct Config {
   int signature; 
-  int j_pulse[3][2];   // Pulse width for Calibration point 0 and 1
-  float j_angle[3][2]; // Corresponding Ideal Angles
+  int j_pulse[3][2];   
+  float j_angle[3][2]; 
+  int grip_open;       
+  int grip_close;      
+  int grip_speed_ms;
+  int last_p[4]; // 最終パルス幅
 } conf;
 
-float curX = 150.0, curY = 0.0, curZ = 50.0; // Robot's current TCP position
-int current_us[3] = {1580, 1900, 2100};      // Current servo pulse widths
+float curX = 150.0, curY = 0.0, curZ = 50.0; 
+int current_us[4] = {1500, 1500, 1500, 1500}; 
+bool moveLogEnabled = false; 
+
+// 現在のパルス位置をEEPROMに保存
+void saveLastPos() {
+  for(int i=0; i<4; i++) conf.last_p[i] = current_us[i];
+  EEPROM.put(0, conf);
+}
 
 void setup() {
   Serial.begin(9600);
   pwm.begin();
   pwm.setPWMFreq(SERVO_FREQ);
 
-  // Load Calibration from EEPROM
   EEPROM.get(0, conf);
   if (conf.signature != 0xABCD) {
     conf.signature = 0xABCD;
-    // Initial safe defaults (Generic mapping)
     for(int i=0; i<3; i++) {
-      conf.j_pulse[i][0] = 1000; conf.j_angle[i][0] = 0.0;
-      conf.j_pulse[i][1] = 2000; conf.j_angle[i][1] = 90.0;
+      conf.j_pulse[i][0] = 1500; conf.j_angle[i][0] = 0.0;
+      conf.j_pulse[i][1] = 2000; conf.j_angle[i][1] = 45.0; 
+      conf.last_p[i] = 1500;
     }
+    conf.last_p[3] = 1500;
+    conf.grip_open = 1000; conf.grip_close = 2000; conf.grip_speed_ms = 300;
+    EEPROM.put(0, conf);
   }
   
-  // Set initial position
-  runIK_Direct(curX, curY, curZ);
-  Serial.println(F("--- ROBOT SYSTEM INITIALIZED ---"));
+  // ★ 記憶されたパルス幅をそのまま出力して静止開始
+  for(int i=0; i<4; i++) {
+    current_us[i] = conf.last_p[i];
+    moveServo(i, current_us[i]);
+  }
+
+  Serial.println(F("--- ROBOT SYSTEM v3.5 (Static Startup) ---"));
+  Serial.print(F("Initial Pulses: "));
+  for(int i=0; i<4; i++) { Serial.print(current_us[i]); Serial.print(i<3?",":"\n"); }
+  Serial.println(F("System Ready (No auto-move)."));
 }
 
-/**
- * SMOOTH STEP (Cubic Easing)
- * S(t) = 3t^2 - 2t^3
- */
-float smoothStep(float t) {
-  return t * t * (3.0 - 2.0 * t);
-}
-
-/**
- * ANGLE TO PULSE MAPPING (Linear Interpolation)
- * P = P0 + (theta - theta0) * (P1 - P0) / (theta1 - theta0)
- */
+// 角度からパルスへの変換
 int angleToUs(int ch, float angle) {
-  float p0 = conf.j_pulse[ch][0];
-  float p1 = conf.j_pulse[ch][1];
-  float a0 = conf.j_angle[ch][0];
-  float a1 = conf.j_angle[ch][1];
+  float p0 = (float)conf.j_pulse[ch][0], p1 = (float)conf.j_pulse[ch][1];
+  float a0 = conf.j_angle[ch][0], a1 = conf.j_angle[ch][1];
+  if (abs(a1 - a0) < 0.01) return (int)p0; 
   return (int)(p0 + (angle - a0) * (p1 - p0) / (a1 - a0));
 }
 
-/**
- * INVERSE KINEMATICS (IK) - Solving for J1, J2, J3
- * Calculates the joint angles required to reach a specific (x, y, z) coordinate.
- * @param x Target X coordinate (mm)
- * @param y Target Y coordinate (mm)
- * @param z Target Z coordinate (mm)
- * @param j1 Reference to store calculated Base angle
- * @param j2 Reference to store calculated Shoulder angle
- * @param j3 Reference to store calculated Elbow angle
- * @return true if the point is reachable, false otherwise
- */
+// サーボ物理駆動
+void moveServo(int ch, int us) {
+  if (ch < 0 || ch > 3) return;
+  current_us[ch] = us;
+  pwm.setPWM(ch, 0, (uint16_t)(us * 4096.0 / 20000.0));
+}
+
+// 逆運動学計算
 bool calculateIK(float x, float y, float z, float &j1, float &j2, float &j3) {
-  // 1. Base Rotation (J1): Calculate angle in the XY plane
   j1 = atan2(y, x) * 180.0 / PI;
-
-  // 2. Find J4 (Wrist) Axis coordinates relative to J2 (Shoulder)
-  // We need to work in the 2D plane formed by the arm extension.
-  float r_total = sqrt(x*x + y*y); // Radial distance from base center (0,0) to target (x,y)
-  float r_j4 = r_total - L_OFF_J4_TCP - OFF_J1_J2; // Horizontal distance from Shoulder (J2) to Wrist (J4)
-  float z_j4 = (z + Z_OFF_J4_TCP) - BASE_H;        // Vertical distance from Shoulder (J2) to Wrist (J4)
-
-  // 3. Solve triangle J2-J3-J4 (Shoulder-Elbow-Wrist) using Law of Cosines
-  float s_sq = r_j4*r_j4 + z_j4*z_j4; // Square of the distance from Shoulder to Wrist
-  float s = sqrt(s_sq);               // Distance from Shoulder to Wrist
-  
-  if (s > (L1 + L2) || s < abs(L1 - L2)) return false; // Check if target is physically reachable
-
-  // Calculate Elbow Angle (J3)
-  float cos_j3 = (L1*L1 + L2*L2 - s_sq) / (2.0 * L1 * L2); // Law of Cosines
-  j3 = acos(cos_j3) * 180.0 / PI; // Result is in degrees
-
-  // Calculate Shoulder Angle (J2)
-  float a1 = atan2(z_j4, r_j4); // Angle of the vector from Shoulder to Wrist
-  float a2 = acos((L1*L1 + s_sq - L2*L2) / (2.0 * L1 * s)); // Angle offset due to Elbow bend
-  j2 = (a1 + a2) * 180.0 / PI; // Total shoulder angle
-
+  float r_j4 = sqrt(x*x + y*x) - L_OFF_J4_TCP - OFF_J1_J2;
+  float z_j4 = (z + Z_OFF_J4_TCP) - BASE_H;
+  float s_sq = r_j4*r_j4 + z_j4*z_j4;
+  float s = sqrt(s_sq);
+  if (s > (L1 + L2) || s < abs(L1 - L2)) return false;
+  float t3 = acos((L1*L1 + L2*L2 - s_sq) / (2.0 * L1 * L2)) * 180.0 / PI;
+  float t2 = acos((L1*L1 + s_sq - L2*L2) / (2.0 * L1 * s)) * 180.0 / PI;
+  j2 = atan2(z_j4, r_j4) * 180.0 / PI + t2;
+  j3 = t3 + j2; 
   return true;
 }
 
-/**
- * COORDINATE-BASED CALIBRATION
- * Tells the robot: "You are now at this XYZ on the mat."
- */
-void registerCalib(int ptIdx, float x, float y, float z) {
-  float tj1, tj2, tj3;
-  if (calculateIK(x, y, z, tj1, tj2, tj3)) {
-    conf.j_pulse[0][ptIdx] = current_us[0]; conf.j_angle[0][ptIdx] = tj1;
-    conf.j_pulse[1][ptIdx] = current_us[1]; conf.j_angle[1][ptIdx] = tj2;
-    conf.j_pulse[2][ptIdx] = current_us[2]; conf.j_angle[2][ptIdx] = tj3;
-    Serial.print(F("Point ")); Serial.print(ptIdx); Serial.println(F(" set by Mat Coordinates."));
-  } else {
-    Serial.println(F("ERROR: Mat position is unreachable for IK."));
-  }
-}
-
-/**
- * LINEAR STRAIGHT-LINE MOTION
- */
-void moveTo(float tx, float ty, float tz) {
+// スムーズな座標移動
+void moveTo(float tx, float ty, float tz, float speed) {
   float sx = curX, sy = curY, sz = curZ;
-  for (int i = 1; i <= STEPS; i++) {
-    float t_linear = (float)i / STEPS;
-    float t_smooth = smoothStep(t_linear);
-    
-    // Cartesian Interpolation
-    float ix = sx + (tx - sx) * t_smooth;
-    float iy = sy + (ty - sy) * t_smooth;
-    float iz = sz + (tz - sz) * t_smooth;
-
+  float dist = sqrt(sq(tx - sx) + sq(ty - sy) + sq(tz - sz));
+  int steps = max(1, (int)((dist / max(1.0f, speed)) * 1000.0 / STEP_DELAY));
+  for (int i = 1; i <= steps; i++) {
+    float t = (float)i / steps;
+    float easedT = t * t * (3.0 - 2.0 * t);
     float j1, j2, j3;
-    if (calculateIK(ix, iy, iz, j1, j2, j3)) {
-      moveServo(0, angleToUs(0, j1));
-      moveServo(1, angleToUs(1, j2));
+    if (calculateIK(sx+(tx-sx)*easedT, sy+(ty-sy)*easedT, sz+(tz-sz)*easedT, j1, j2, j3)) {
+      moveServo(0, angleToUs(0, j1)); 
+      moveServo(1, angleToUs(1, j2)); 
       moveServo(2, angleToUs(2, j3));
       delay(STEP_DELAY);
     }
   }
   curX = tx; curY = ty; curZ = tz;
-  Serial.println(F("OK"));
+  saveLastPos(); // 完了後にEEPROM保存
 }
 
-void runIK_Direct(float x, float y, float z) {
-  float j1, j2, j3;
-  if (calculateIK(x, y, z, j1, j2, j3)) {
-    moveServo(0, angleToUs(0, j1));
-    moveServo(1, angleToUs(1, j2));
-    moveServo(2, angleToUs(2, j3));
+void executeCommand(String cmd) {
+  cmd.trim();
+  if (cmd.startsWith("move")) {
+    float tx = curX, ty = curY, tz = curZ, speed = 50.0;
+    if(cmd.indexOf("x=") != -1) tx = cmd.substring(cmd.indexOf("x=")+2).toFloat();
+    if(cmd.indexOf("y=") != -1) ty = cmd.substring(cmd.indexOf("y=")+2).toFloat();
+    if(cmd.indexOf("z=") != -1) tz = cmd.substring(cmd.indexOf("z=")+2).toFloat();
+    if(cmd.indexOf("s=") != -1) speed = cmd.substring(cmd.indexOf("s=")+2).toFloat();
+    moveTo(tx, ty, tz, speed);
+  } 
+  else if (cmd.startsWith("calib")) {
+    int ptIdx = cmd.substring(5,6).toInt();
+    float tx=0, ty=0, tz=0;
+    if(cmd.indexOf("x=") != -1) tx = cmd.substring(cmd.indexOf("x=")+2).toFloat();
+    if(cmd.indexOf("y=") != -1) ty = cmd.substring(cmd.indexOf("y=")+2).toFloat();
+    if(cmd.indexOf("z=") != -1) tz = cmd.substring(cmd.indexOf("z=")+2).toFloat();
+    float tj1, tj2, tj3;
+    if (calculateIK(tx, ty, tz, tj1, tj2, tj3)) {
+      conf.j_pulse[0][ptIdx] = current_us[0]; conf.j_angle[0][ptIdx] = tj1;
+      conf.j_pulse[1][ptIdx] = current_us[1]; conf.j_angle[1][ptIdx] = tj2;
+      conf.j_pulse[2][ptIdx] = current_us[2]; conf.j_angle[2][ptIdx] = tj3; 
+      Serial.println(F("Point registered."));
+    }
+  }
+  else if (cmd.startsWith("grip")) {
+    int start_us = current_us[3];
+    int target_us = (cmd.indexOf("open") != -1) ? conf.grip_open : conf.grip_close;
+    int steps = max(1, conf.grip_speed_ms / STEP_DELAY);
+    for (int i = 1; i <= steps; i++) {
+      moveServo(3, start_us + (int)((target_us - start_us) * (float)i / steps));
+      delay(STEP_DELAY);
+    }
+    saveLastPos();
+  }
+  else if (cmd.startsWith("c")) { 
+    int eqIdx = cmd.indexOf('=');
+    if (eqIdx != -1) {
+      moveServo(cmd.substring(1, eqIdx).toInt(), cmd.substring(eqIdx + 1).toInt());
+      saveLastPos();
+    }
+  }
+  else if (cmd == "save") { saveLastPos(); Serial.println(F("Config Saved.")); }
+  else if (cmd == "dump") {
+    Serial.println(F("\n--- CONFIG DUMP ---"));
+    for(int i=0; i<3; i++) {
+      Serial.print("C"); Serial.print(i);
+      Serial.print(": P0="); Serial.print(conf.j_pulse[i][0]); Serial.print(" A0="); Serial.print(conf.j_angle[i][0]);
+      Serial.print(" | P1="); Serial.print(conf.j_pulse[i][1]); Serial.print(" A1="); Serial.print(conf.j_angle[i][1]);
+      Serial.print("  CUR_PULSE="); Serial.println(current_us[i]);
+    }
+    Serial.println("--- END ---\n");
   }
 }
 
-void moveServo(int ch, int us) {
-  if (ch < 0 || ch > 2) return;
-  current_us[ch] = us;
-  pwm.setPWM(ch, 0, (uint16_t)(us * 4096.0 / 20000.0));
-}
-
-/**
- * COMMAND HANDLER
- */
 void loop() {
   if (Serial.available() > 0) {
-    String cmd = Serial.readStringUntil('\n');
-    cmd.trim();
-
-    if (cmd.startsWith("move")) {
-      float tx = curX, ty = curY, tz = curZ;
-      if(cmd.indexOf("x=") != -1) tx = cmd.substring(cmd.indexOf("x=")+2).toFloat();
-      if(cmd.indexOf("y=") != -1) ty = cmd.substring(cmd.indexOf("y=")+2).toFloat();
-      if(cmd.indexOf("z=") != -1) tz = cmd.substring(cmd.indexOf("z=")+2).toFloat();
-      moveTo(tx, ty, tz);
-    } 
-    else if (cmd.startsWith("calib")) {
-      int ptIdx = cmd.substring(5,6).toInt(); // calib0 or calib1
-      float tx = 0, ty = 0, tz = 0;
-      if(cmd.indexOf("x=") != -1) tx = cmd.substring(cmd.indexOf("x=")+2).toFloat();
-      if(cmd.indexOf("y=") != -1) ty = cmd.substring(cmd.indexOf("y=")+2).toFloat();
-      if(cmd.indexOf("z=") != -1) tz = cmd.substring(cmd.indexOf("z=")+2).toFloat();
-      registerCalib(ptIdx, tx, ty, tz);
+    String input = Serial.readStringUntil('\n');
+    input.trim();
+    int startIdx = 0;
+    int delimiterIdx = input.indexOf(';');
+    while (delimiterIdx != -1) {
+      executeCommand(input.substring(startIdx, delimiterIdx));
+      startIdx = delimiterIdx + 1;
+      delimiterIdx = input.indexOf(';', startIdx);
     }
-    else if (cmd.startsWith("c")) { // Direct servo pulse control
-      int ch = cmd.substring(1,2).toInt();
-      int val = cmd.substring(cmd.indexOf('=')+1).toInt();
-      moveServo(ch, val);
-    }
-    else if (cmd == "save") {
-      EEPROM.put(0, conf);
-      Serial.println(F("Config stored to EEPROM."));
-    }
+    executeCommand(input.substring(startIdx));
   }
 }
