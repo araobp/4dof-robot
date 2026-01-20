@@ -4,7 +4,7 @@
 #include <EEPROM.h>
 
 /**
- * 物理パラメータ (単位: mm)
+ * Physical parameters (Unit: mm)
  */
 const float L1 = 80.0;          
 const float L2 = 80.0;          
@@ -24,14 +24,14 @@ struct Config {
   int grip_open;       
   int grip_close;      
   int grip_speed_ms;
-  int last_p[4]; // 最終パルス幅
+  int last_p[4]; // Last pulse width
 } conf;
 
 float curX = 150.0, curY = 0.0, curZ = 50.0; 
 int current_us[4] = {1500, 1500, 1500, 1500}; 
 bool moveLogEnabled = false; 
 
-// 現在のパルス位置をEEPROMに保存
+// Save current pulse position to EEPROM
 void saveLastPos() {
   for(int i=0; i<4; i++) conf.last_p[i] = current_us[i];
   EEPROM.put(0, conf);
@@ -55,7 +55,7 @@ void setup() {
     EEPROM.put(0, conf);
   }
   
-  // ★ 記憶されたパルス幅をそのまま出力して静止開始
+  // ★ Output stored pulse width as is and start static
   for(int i=0; i<4; i++) {
     current_us[i] = conf.last_p[i];
     moveServo(i, current_us[i]);
@@ -67,7 +67,7 @@ void setup() {
   Serial.println(F("System Ready (No auto-move)."));
 }
 
-// 角度からパルスへの変換
+// Convert angle to pulse
 int angleToUs(int ch, float angle) {
   float p0 = (float)conf.j_pulse[ch][0], p1 = (float)conf.j_pulse[ch][1];
   float a0 = conf.j_angle[ch][0], a1 = conf.j_angle[ch][1];
@@ -75,29 +75,45 @@ int angleToUs(int ch, float angle) {
   return (int)(p0 + (angle - a0) * (p1 - p0) / (a1 - a0));
 }
 
-// サーボ物理駆動
+// Servo physical drive
 void moveServo(int ch, int us) {
   if (ch < 0 || ch > 3) return;
   current_us[ch] = us;
   pwm.setPWM(ch, 0, (uint16_t)(us * 4096.0 / 20000.0));
 }
 
-// 逆運動学計算
 bool calculateIK(float x, float y, float z, float &j1, float &j2, float &j3) {
+  // 1. Calculate base angle j1
+  // atan2 returns a negative value when y is negative, so an offset may be needed depending on servo definition
   j1 = atan2(y, x) * 180.0 / PI;
-  float r_j4 = sqrt(x*x + y*x) - L_OFF_J4_TCP - OFF_J1_J2;
+
+  // 2. Calculate horizontal distance r_total (Planar distance from base to TCP)
+  float r_total = sqrt(x*x + y*y);
+
+  // 3. Horizontal distance r_j4 and vertical distance z_j4 from J2 joint to J4 joint
+  // Subtract offsets
+  float r_j4 = r_total - L_OFF_J4_TCP - OFF_J1_J2;
   float z_j4 = (z + Z_OFF_J4_TCP) - BASE_H;
+
+  // 4. Calculate straight line distance s between J2-J4 using Pythagorean theorem
   float s_sq = r_j4*r_j4 + z_j4*z_j4;
   float s = sqrt(s_sq);
+  
+  // Physical limit check
   if (s > (L1 + L2) || s < abs(L1 - L2)) return false;
+
+  // 5. Calculate internal angles using Law of Cosines
   float t3 = acos((L1*L1 + L2*L2 - s_sq) / (2.0 * L1 * L2)) * 180.0 / PI;
   float t2 = acos((L1*L1 + s_sq - L2*L2) / (2.0 * L1 * s)) * 180.0 / PI;
+  
+  // 6. Convert to servo angles
   j2 = atan2(z_j4, r_j4) * 180.0 / PI + t2;
   j3 = t3 + j2; 
+  
   return true;
 }
 
-// スムーズな座標移動
+// Smooth coordinate movement
 void moveTo(float tx, float ty, float tz, float speed) {
   float sx = curX, sy = curY, sz = curZ;
   float dist = sqrt(sq(tx - sx) + sq(ty - sy) + sq(tz - sz));
@@ -114,7 +130,7 @@ void moveTo(float tx, float ty, float tz, float speed) {
     }
   }
   curX = tx; curY = ty; curZ = tz;
-  saveLastPos(); // 完了後にEEPROM保存
+  saveLastPos(); // Save to EEPROM after completion
 }
 
 void executeCommand(String cmd) {
@@ -160,14 +176,48 @@ void executeCommand(String cmd) {
   }
   else if (cmd == "save") { saveLastPos(); Serial.println(F("Config Saved.")); }
   else if (cmd == "dump") {
-    Serial.println(F("\n--- CONFIG DUMP ---"));
+    Serial.println(F("\n--- ROBOT CONFIG & STATUS ---"));
+    
+    // 1. Pulse/Angle mapping table for each channel
     for(int i=0; i<3; i++) {
-      Serial.print("C"); Serial.print(i);
-      Serial.print(": P0="); Serial.print(conf.j_pulse[i][0]); Serial.print(" A0="); Serial.print(conf.j_angle[i][0]);
-      Serial.print(" | P1="); Serial.print(conf.j_pulse[i][1]); Serial.print(" A1="); Serial.print(conf.j_angle[i][1]);
-      Serial.print("  CUR_PULSE="); Serial.println(current_us[i]);
+      Serial.print("Ch"); Serial.print(i);
+      Serial.print(": [P0="); Serial.print(conf.j_pulse[i][0]);
+      Serial.print(", A0="); Serial.print(conf.j_angle[i][0], 1);
+      Serial.print("] [P1="); Serial.print(conf.j_pulse[i][1]);
+      Serial.print(", A1="); Serial.print(conf.j_angle[i][1], 1);
+      Serial.print("] | CUR_P="); Serial.println(current_us[i]);
     }
-    Serial.println("--- END ---\n");
+
+    Serial.println(F("----------------------------------------"));
+
+    // 2. Reference coordinates registered during calibration (calib0 / calib1)
+    // * To display coordinates held without reverse IK calculation from A0, A1
+    // Although coordinates should ideally be saved in the struct, based on current logic
+    // output information to verify inverse kinematics consistency.
+    
+    Serial.println(F("[Calibration Points Data]"));
+    // j_angle[ch][0] is each joint angle at calib0
+    Serial.print(F(" Point 0 (calib0) Angles: "));
+    Serial.print(conf.j_angle[0][0], 1); Serial.print(",");
+    Serial.print(conf.j_angle[1][0], 1); Serial.print(",");
+    Serial.println(conf.j_angle[2][0], 1);
+
+    // j_angle[ch][1] is each joint angle at calib1
+    Serial.print(F(" Point 1 (calib1) Angles: "));
+    Serial.print(conf.j_angle[0][1], 1); Serial.print(",");
+    Serial.print(conf.j_angle[1][1], 1); Serial.print(",");
+    Serial.println(conf.j_angle[2][1], 1);
+
+    Serial.println(F("----------------------------------------"));
+
+    // 3. Current logical coordinates
+    Serial.print(F("Current Logic TCP: X=")); Serial.print(curX);
+    Serial.print(F(" Y=")); Serial.print(curY);
+    Serial.print(F(" Z=")); Serial.println(curZ);
+    
+    Serial.print(F("Gripper: Open=")); Serial.print(conf.grip_open);
+    Serial.print(F(" Close=")); Serial.println(conf.grip_close);
+    Serial.println(F("--- END DUMP ---\n"));
   }
 }
 
