@@ -1,22 +1,17 @@
 """
-ロボットアーム、ビジョンシステム、およびWeb UIを統合制御するMCP (Model-Centric Protocol) サーバーです。
+ロボットアームおよびビジョンシステムを統合制御するMCP (Model-Centric Protocol) サーバーです。
 
 このサーバーは以下の機能を提供します:
 - FastMCPフレームワークを介したAIエージェントとのツールベースの対話
 - Arduinoベースのロボットアームとのシリアル通信
 - OpenCVベースのビジョンシステム（ArUcoマーカーによる姿勢推定と座標変換）
-- SvelteKitで構築された静的Webサイトのホスティング（別スレッド）
 """
 from fastmcp import FastMCP
 import serial
 import time
 import json
 import base64
-import os
-import http.server
-import socketserver
-import threading
-import functools
+import cv2
 from vision_system import VisionSystem
 
 # --- 基本設定 ---
@@ -29,43 +24,17 @@ TIMEOUT = 45
 
 # --- ビジョンシステム設定 ---
 # カメラキャリブレーションによって得られた内部パラメータファイル
-CAMERA_PARAMS_PATH = '../vision/aruco/camera_params.npz'
+CAMERA_PARAMS_PATH = '../vision/chessboard/calibration_data.npz'
 # 座標系の原点として使用するArUcoマーカーのID
-ARUCO_MARKER_ID = 0
+ARUCO_MARKER_ID = 14
 # ArUcoマーカーの物理的な一辺の長さ (cm)
-ARUCO_MARKER_SIZE_CM = 5.0
+ARUCO_MARKER_SIZE_CM = 6.3
 # 使用するカメラのデバイスID
 CAMERA_ID = 0
 
 mcp = FastMCP(
     "RobotArmController"
 )
-
-# --- 静的Webサイトのホスティング設定 ---
-# SvelteKitでビルドされた静的ファイルのルートディレクトリパスを構築
-# このスクリプトの場所から相対的にパスを解決
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(current_dir, "../../"))
-static_site_path = os.path.join(project_root, "sveltekit", "mcp_client", "build")
-
-def serve_static_site(directory, port=8000):
-    """指定されたディレクトリの静的ファイルを別スレッドでホスティングするHTTPサーバー"""
-    handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=directory)
-    class ReusableTCPServer(socketserver.TCPServer):
-        allow_reuse_address = True
-    try:
-        with ReusableTCPServer(("", port), handler) as httpd:
-            print(f"Serving static site at http://0.0.0.0:{port}")
-            httpd.serve_forever()
-    except Exception as e:
-        print(f"Could not start static server on port {port}: {e}")
-
-if os.path.exists(static_site_path):
-    # Web UI用のHTTPサーバーをデーモンスレッドで起動
-    thread = threading.Thread(target=serve_static_site, args=(static_site_path, 8000), daemon=True)
-    thread.start()
-else:
-    print(f"警告: 静的サイトのディレクトリが見つかりません: {static_site_path}")
 
 # --- グローバルリソース ---
 # VisionSystemとシリアル接続は、必要になるまで初期化しない（遅延初期化）
@@ -132,7 +101,7 @@ def send_command(cmd: str) -> str:
     コマンドをArduinoに送信し、応答を待機する。
     
     通信プロトコル：
-    1. コマンド文字列の末尾に改行コード `\n` を付与して送信。
+    1. コマンド文字列の末尾に改行コード `\\n` を付与して送信。
     2. Arduinoからの応答を一行ずつ読み込む。
     3. 応答の最後にプロンプト文字 '%' が送られてきたら、コマンド完了とみなす。
     """
@@ -211,19 +180,22 @@ def get_robot_status() -> str:
     return send_command("dump")
 
 @mcp.tool()
-def get_live_image() -> str:
+def get_live_image(visualize_axes: bool = True) -> str:
     """
     カメラから歪み補正済みのライブ映像を1フレームキャプチャし、Base64エンコードされたJPEG形式で返します。
     この画像は、ロボットの作業領域の現在の状況を視覚的に確認するために使用します。
     基準マーカーが検出されている場合は、画像の座標系を示す3D軸が重畳描画されます。
     返り値は `{"image_jpeg_base64": "..."}` という形式のJSON文字列です。
+
+    Args:
+        visualize_axes (bool): Trueの場合、画像に座標軸を描画します。
     """
     vs = get_vision_system()
     if not vs:
         return "Error: Vision system is not available."
     
     # 姿勢を更新し、マーカーが見える場合に軸が描画されるようにする
-    vs.update_pose()
+    vs.update_pose(visualize_axes=visualize_axes)
     
     base64_image = vs.get_undistorted_image_base64()
     if base64_image:
@@ -247,17 +219,27 @@ def convert_image_coords_to_world(u: int, v: int) -> str:
         v (int): 変換したい画像の垂直方向（縦軸）のピクセル座標。
     
     Returns:
-        変換に成功した場合: `{"x": float, "y": float, "z": 0.0}` という形式のJSON文字列。座標の単位はcm。
+        変換に成功した場合: `{"x": float, "y": float, "z": 0.0, "image_jpeg_base64": "..."}` という形式のJSON文字列。
+        座標の単位はcm。`image_jpeg_base64` には、ターゲット位置を描画した画像のBase64エンコード文字列が含まれます。
         変換に失敗した場合: 失敗理由を示すエラーメッセージ文字列。
     """
     vs = get_vision_system()
     if not vs:
         return "Error: Vision system is not available."
 
-    coords = vs.convert_2d_to_3d(u, v)
+    # 座標変換のために最新のマーカー姿勢を取得・更新する
+    vs.update_pose(visualize_axes=True)
+
+    coords, annotated_frame = vs.convert_2d_to_3d(u, v, draw_target=True)
     
     if coords:
-        return json.dumps(coords)
+        response_data = coords
+        if annotated_frame is not None:
+            _, buffer = cv2.imencode('.jpg', annotated_frame)
+            base64_image = base64.b64encode(buffer).decode('utf-8')
+            response_data["image_jpeg_base64"] = base64_image
+
+        return json.dumps(response_data)
     else:
         return "Error: Could not perform coordinate conversion. Ensure the ArUco marker is clearly visible to the camera."
 
