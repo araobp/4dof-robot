@@ -1,34 +1,6 @@
 # Beginning Physical AI
 
-まだ、始まったばかりのプロジェクト。
-
 <img src="docs/4DoF_Robot_Kit.jpg" width="500px">
-
-## 背景
-
-個人の自己研鑽として低予算（1万円以下）でフィジカルAIを始めるには、
-- Unityと物理エンジンでシミュレーションから始める、Unityを基盤とする
-- 4DoFロボットアームキットで電子工作から始める、Arduinoやラズパイを基盤とする
-
-の二つの始め方がある。両方で始めれば、より、フィジカルAIの仕組みを理解できる。
-
-このような始め方でも、AIの学習のところ（模倣学習、強化学習など）を除けば、網羅的に学習できる。Gemini Robotics-ERなど、学習済みAIを活用すれば、それなりの動作を期待できる。
-
-シミュレーションからの始め方については開発済み：https://github.com/araobp/unity-robotics
-
-ここでは、電子工作からの始め方を開発する。
-
-開発の節目ごとに、技術的な知見をQiitaにて公開していく予定。
-
-### つくりながら仕組みを理解するのが重要な理由：視野が広がる
-
-個々の仕組みを理解すると、フィジカルAIの現状が見えてくる：まだ、人間の指示にしたがい、移動するとか、物を運ぶとか、検査するとか、監視するとか、その程度しか出来ていない。それらは、これまでは、IoT+AIカメラ＋AR＋ドローン＋移動ロボット＋人手で解決しようとしていた部分。HAL 9000が宇宙船全体を制御するくらいの世界を考えたい。
-
-例えば、[Geminiに空港向けMCPサービス仕様を書かせてみた](https://github.com/araobp/airport/blob/main/docs/MCP_SPEC.md)が、これら、フィジカルAIを必要とする。OpenAIやSharpが考えているような新デバイスも必要。こういうの、大きなビジネスチャンスになると私は見ている。人型ロボットだけでなく、ITとOTの融合のあたりも巨大なビジネスチャンスではないか？だから、ICTエンジニアの私がフィジカルAIの勉強を始めている。
-
-そういう意味で、オフィス内で使われるAIエージェントとフィジカルAIを区別する必要もない。最初から一緒に考える。そういう意味で、MCPが重要な要素になるかもしれない。ただ、IoTとかOTのネットワークは、pubsubで通信するケースが多い。MCPやpubsubをAIエージェント間で機能させるため、LANとOTネットワークの統合が必要かも。
-
-仕事では、ここ2年間、AIエージェント作り続けた末に出てきた結論：実は、目の前の仕事を楽にすることではなく、生成AIやMCPで企業や社会におけるサイロ化をなくすことこそ巨大なビジネスチャンス。ROI最大化に向かうので経営者は歓迎。ただ、なかなか、そういう大きなビジョンで物事考えられる人は少ない。目的は、生成AIを使いこなすことではなく、ROI最大化のはず。このプロジェクトも、ROI最大化を意識した活動。
 
 ## Qiita記事投稿
 
@@ -37,18 +9,6 @@
 3. [おもちゃのロボットアームでフィジカルAIを網羅的に勉強したい 〜 その２：ロボットコントローラ編](https://qiita.com/araobp/items/0776cc494c6963fc61ad)
 4. ...
 
-## 構成
-
-```
-[USBカメラ]-----------------USB---------------------------------------------+
-                                                                           |
-[サーボモータコントローラ]---I2C---[4DoFロボットコントローラ]---USB Serial---[MCP Server]-----MCP-----[MCP Client]
-                                      |  Arduino UNO                   ラズパイ              SvelteKitベースウエブアプリ
-[センサ]-------------------------------+                                                     Unityベース4DoFロボットデジタルツイン
-
-
-
-```
 
 ## 部品・ツール
 
@@ -73,61 +33,6 @@ I2C address: 0x40 (A0 - A5 の端子を半田付けしてクローズするこ�
 - Arduinoライブラリ：https://github.com/adafruit/Adafruit-PWM-Servo-Driver-Library
 
 ArduinoのI2C通信では、Wire.begin();を実行すると、デジタルピン2と3（SDA, SCL）に内部プルアップ抵抗が自動的に有効になりますが、これはおよそ20kΩ〜50kΩと抵抗値が比較的高めなので、より確実な通信のためには、通常4.7kΩ〜10kΩ程度の外付けプルアップ抵抗をSDA/SCLラインに接続するのが推奨されます。Wire.begin()だけでは不十分な場合があるため、外部抵抗の追加を検討しましょう。
-
-### Camera Calibration用のチェスボード
-
-=> [OpenCVでチェスボード作成とカメラキャリブレーションデータ作成](python/chessboard)
-
-<img src="python/chessboard/chessboard_10x7.png" width="300px">
-
-### ArUCOマーカー生成
-
-=> [OpenCVでArUCOマーカー作成](python/aruco)
-
-<table>
-  <tr>
-    <td>
-      <img src="python/aruco/marker_ID_1.png" width="80px">
-    </td>
-    <td>
-      <img src="python/aruco/marker_ID_2.png" width="80px">
-    </td>
-    <td>
-      <img src="python/aruco/marker_ID_3.png" width="80px">
-    </td>
-    <td>
-      <img src="python/aruco/marker_ID_4.png" width="80px">
-    </td>
-    <td>
-      <img src="python/aruco/marker_ID_5.png" width="80px">
-    </td>
-    <td>
-      <img src="python/aruco/marker_ID_6.png" width="80px">
-    </td>
-    <td>
-      <img src="python/aruco/marker_ID_7.png" width="80px">
-    </td>
-    <td>
-      <img src="python/aruco/marker_ID_8.png" width="80px">
-    </td>
-  </tr>
-</table>
-
-### Mac/PC/ラズパイ上で動作させる MCP Server
-
-=> [FastMCPベースのMCPサーバ](python/mcp_server)
-
-### Arduinoベースの4DoFロボットコントローラ
-
-...
-
-### SvelteKitベースのウエブアプリ (MCP Client)
-
-...
-
-### Unityベースの4DoFロボットデジタルツイン (MCP Client)
-
-...
 
 ## 関連する私のGitHubプロジェクト
 
